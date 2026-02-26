@@ -1,0 +1,425 @@
+[gd_scene load_steps=10 format=3 uid="uid://bktjro0h7yvnh"]
+
+[ext_resource type="Script" path="res://scripts/Launcher.gd" id="1_launcher"]
+[ext_resource type="Shader" path="res://media/shaders/grid_background.gdshader" id="2_grid_shader"]
+[ext_resource type="Shader" path="res://media/shaders/scanline.gdshader" id="3_scanline_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_grid"]
+shader = ExtResource("2_grid_shader")
+shader_parameter/grid_color = Color(0, 0.8, 1, 0.2)
+shader_parameter/background_color = Color(0.01, 0.01, 0.06, 1)
+shader_parameter/grid_size = 60.0
+shader_parameter/grid_thickness = 1.2
+shader_parameter/scroll_speed = 15.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_scanline"]
+shader = ExtResource("3_scanline_shader")
+shader_parameter/scanline_count = 500.0
+shader_parameter/scanline_intensity = 0.1
+shader_parameter/scanline_speed = 0.5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.02, 0.05, 0.12, 0.85)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.7, 1, 0.6)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0.8, 1, 0.3)
+shadow_size = 8
+shadow_offset = Vector2(0, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+bg_color = Color(0.05, 0.1, 0.2, 0.7)
+border_width_bottom = 3
+border_color = Color(0, 0.9, 1, 0.8)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+
+[sub_resource type="Gradient" id="Gradient_neon"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(0, 0.5, 1, 0, 0, 0.8, 1, 1, 0.5, 0, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_glow"]
+gradient = SubResource("Gradient_neon")
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+
+[node name="LauncherRoot" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_launcher")
+
+[node name="BackgroundLayer" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="GridBackground" type="ColorRect" parent="BackgroundLayer"]
+material = SubResource("ShaderMaterial_grid")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Stars" type="CPUParticles2D" parent="BackgroundLayer"]
+position = Vector2(960, 540)
+amount = 200
+lifetime = 20.0
+preprocess = 10.0
+emission_shape = 3
+emission_rect_extents = Vector2(1000, 600)
+gravity = Vector2(0, 0)
+initial_velocity_min = 10.0
+initial_velocity_max = 30.0
+scale_amount_min = 0.5
+scale_amount_max = 2.0
+color = Color(0.5, 0.8, 1, 0.6)
+
+[node name="ScanlineOverlay" type="ColorRect" parent="BackgroundLayer"]
+material = SubResource("ShaderMaterial_scanline")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Header" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 80.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Header"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="Header/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0, 0.9, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0.8, 1, 0.5)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 0
+theme_override_constants/shadow_outline_size = 8
+theme_override_font_sizes/font_size = 48
+text = "◢ C-BASE ARCADE OS ◣"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="StatusIndicator" type="HBoxContainer" parent="Header/HBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="ClockLabel" type="Label" parent="Header/HBoxContainer/StatusIndicator"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 1, 0.6)
+theme_override_font_sizes/font_size = 18
+text = "00:00:00"
+vertical_alignment = 1
+
+[node name="OnlineStatus" type="Label" parent="Header/HBoxContainer/StatusIndicator"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 16
+text = "● ONLINE"
+
+[node name="MainLayout" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = 100.0
+offset_right = -30.0
+offset_bottom = -100.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 30
+
+[node name="GameListPanel" type="PanelContainer" parent="MainLayout"]
+custom_minimum_size = Vector2(500, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainLayout/GameListPanel"]
+layout_mode = 2
+
+[node name="ListHeader" type="Label" parent="MainLayout/GameListPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "▼ AVAILABLE MODULES"
+
+[node name="Separator" type="HSeparator" parent="MainLayout/GameListPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+theme_override_styles/separator = SubResource("StyleBoxFlat_header")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MainLayout/GameListPanel/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="GameList" type="VBoxContainer" parent="MainLayout/GameListPanel/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="GameDetailsPanel" type="PanelContainer" parent="MainLayout"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainLayout/GameDetailsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="DetailHeader" type="Label" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "▼ MODULE DETAILS"
+
+[node name="Separator" type="HSeparator" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+theme_override_styles/separator = SubResource("StyleBoxFlat_header")
+
+[node name="MediaContainer" type="AspectRatioContainer" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 350)
+layout_mode = 2
+ratio = 1.77778
+
+[node name="MediaFrame" type="Panel" parent="MainLayout/GameDetailsPanel/VBoxContainer/MediaContainer"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="IconOrScreenshot" type="TextureRect" parent="MainLayout/GameDetailsPanel/VBoxContainer/MediaContainer"]
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="PreviewVideo" type="VideoStreamPlayer" parent="MainLayout/GameDetailsPanel/VBoxContainer/MediaContainer"]
+layout_mode = 2
+autoplay = false
+paused = false
+
+[node name="TitleLabel" type="Label" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0.7, 1, 0.5)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 0
+theme_override_constants/shadow_outline_size = 4
+theme_override_font_sizes/font_size = 42
+text = "SELECT A MODULE"
+
+[node name="AuthorLabel" type="Label" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "by Unknown Operator"
+
+[node name="MetaLabel" type="Label" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0, 0.8, 0.8)
+theme_override_font_sizes/font_size = 20
+text = "1P • 2024"
+
+[node name="DescriptionLabel" type="RichTextLabel" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/default_color = Color(0.7, 0.9, 1, 1)
+theme_override_font_sizes/normal_font_size = 20
+bbcode_enabled = true
+text = "[color=#00DDFF]Awaiting module selection...[/color]"
+fit_content = true
+scroll_active = false
+
+[node name="ScorePanel" type="VBoxContainer" parent="MainLayout/GameDetailsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ScoreTitle" type="Label" parent="MainLayout/GameDetailsPanel/VBoxContainer/ScorePanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.9, 0, 1)
+theme_override_colors/font_shadow_color = Color(1, 0.7, 0, 0.5)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 0
+theme_override_constants/shadow_outline_size = 4
+theme_override_font_sizes/font_size = 26
+text = "█ HIGH SCORES █"
+
+[node name="ScoreList" type="VBoxContainer" parent="MainLayout/GameDetailsPanel/VBoxContainer/ScorePanel"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Footer" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -70.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Footer"]
+layout_mode = 2
+
+[node name="ControlsHint" type="Label" parent="Footer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0, 0.9, 1, 0.8)
+theme_override_font_sizes/font_size = 20
+text = "◄► NAVIGATE  •  PgUp/PgDn JUMP  •  [ACCEPT] LAUNCH"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="GameCountLabel" type="Label" parent="Footer/HBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 1, 0.7)
+theme_override_font_sizes/font_size = 20
+text = "MODULE 0 / 0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="SelectionGlow" type="TextureRect" parent="."]
+visible = false
+modulate = Color(0, 0.8, 1, 0.4)
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+texture = SubResource("GradientTexture2D_glow")
+
+[node name="FadeLayer" type="CanvasLayer" parent="."]
+layer = 100
+
+[node name="FadeRect" type="ColorRect" parent="FadeLayer"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="DebounceTimer" type="Timer" parent="."]
+wait_time = 0.5
+one_shot = true
+
+[node name="AttractTimer" type="Timer" parent="."]
+wait_time = 30.0
+one_shot = true
+
+[node name="GlowPulseTimer" type="Timer" parent="."]
+wait_time = 0.05
+autostart = true
+
+[node name="AttractOverlay" type="CanvasLayer" parent="."]
+layer = 60
+visible = false
+
+[node name="AttractBG" type="ColorRect" parent="AttractOverlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0.04, 0.55)
+mouse_filter = 2
+
+[node name="AttractLabel" type="Label" parent="AttractOverlay"]
+layout_mode = 1
+anchor_left = 0.0
+anchor_top = 0.72
+anchor_right = 1.0
+anchor_bottom = 0.88
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.9, 0, 1)
+theme_override_colors/font_shadow_color = Color(1, 0.5, 0, 0.7)
+theme_override_constants/shadow_outline_size = 8
+theme_override_font_sizes/font_size = 60
+text = "★  PRESS START  ★"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="AdminOverlay" type="CanvasLayer" parent="."]
+layer = 90
+visible = false
+
+[node name="AdminDim" type="ColorRect" parent="AdminOverlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.82)
+mouse_filter = 2
+
+[node name="AdminPanel" type="PanelContainer" parent="AdminOverlay"]
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -420.0
+offset_top = -320.0
+offset_right = 420.0
+offset_bottom = 320.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="AdminOverlay/AdminPanel"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="AdminTitle" type="Label" parent="AdminOverlay/AdminPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0, 0.8, 1)
+theme_override_colors/font_shadow_color = Color(1, 0, 0.5, 0.5)
+theme_override_constants/shadow_outline_size = 6
+theme_override_font_sizes/font_size = 32
+text = "▮  ADMIN PANEL  ▮"
+horizontal_alignment = 1
+
+[node name="AdminSep" type="HSeparator" parent="AdminOverlay/AdminPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxFlat_header")
+
+[node name="AdminInfo" type="RichTextLabel" parent="AdminOverlay/AdminPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 320)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/default_color = Color(0.7, 0.9, 1, 1)
+theme_override_font_sizes/normal_font_size = 20
+bbcode_enabled = true
+text = ""
+scroll_active = true
+
+[node name="AdminCloseHint" type="Label" parent="AdminOverlay/AdminPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 1, 0.65)
+theme_override_font_sizes/font_size = 18
+text = "[CANCEL] CLOSE  •  Hold ACCEPT+CANCEL (3s) to reopen"
+horizontal_alignment = 1
+
+[node name="UiSfx" type="AudioStreamPlayer" parent="."]
+
+[node name="UiConfirmSfx" type="AudioStreamPlayer" parent="."]
