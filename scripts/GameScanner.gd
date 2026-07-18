@@ -5,6 +5,17 @@ class_name GameScanner
 
 const GAMES_DIR := "/arcade/games"
 
+# Fullscreen flag per engine, resolved at scan time so the launch path stays
+# engine-agnostic. Only display args are passed: Godot 4.4+ export templates
+# reject path overrides like --main-pack, and the binary finds its pck on its
+# own (embedded, or basename-matched next to the executable).
+const ENGINE_ARGS := {
+	"godot": ["--fullscreen"],
+	"unity": ["-screen-fullscreen", "1"],
+}
+
+var _is_linux := OS.get_name() == "Linux"
+
 # Populated after each scan_games() call; used by admin overlay
 var scan_warnings: Array[String] = []
 
@@ -26,8 +37,7 @@ func scan_games() -> Array[GameInfo]:
 				if info.is_launchable():
 					results.append(info)
 				else:
-					var missing := "exec" if info.exec_path == "" else "pck"
-					scan_warnings.append("SKIP: %s (missing %s)" % [directory_name, missing])
+					scan_warnings.append("SKIP: %s (no executable found)" % directory_name)
 		directory_name = dir.get_next()
 	dir.list_dir_end()
 	return results
@@ -38,7 +48,6 @@ func _scan_game_folder(folder: String) -> GameInfo:
 	info.game_id = folder.get_file()
 
 	var exec_path: String = ""
-	var pck_path: String = ""
 
 	var dir := DirAccess.open(folder)
 	if dir == null:
@@ -49,28 +58,35 @@ func _scan_game_folder(folder: String) -> GameInfo:
 	var screenshot_path := folder.path_join("screenshot.png")
 	var icon_path := folder.path_join("icon.png")
 
+	var fallback_exec := ""
+	var engine := "godot"
 	dir.list_dir_begin()
 	var f := dir.get_next()
 	while f != "":
 		if not dir.current_is_dir():
 			if f.ends_with(".x86_64") or f.ends_with(".AppImage"):
 				exec_path = folder.path_join(f)
-			elif f.ends_with(".pck"):
-				pck_path = folder.path_join(f)
 			elif f == "preview.ogv":
 				preview_path = folder.path_join(f)
+			elif f == "UnityPlayer.so":
+				engine = "unity"
+			elif exec_path == "" and fallback_exec == "" and _looks_executable(folder.path_join(f)):
+				fallback_exec = folder.path_join(f)
+		elif f.ends_with("_Data"):
+			# Unity builds older than 2019 have no UnityPlayer.so, but always
+			# ship a <name>_Data directory next to the executable.
+			engine = "unity"
 		f = dir.get_next()
 	dir.list_dir_end()
 
-	info.exec_path = exec_path
-	info.pck_path = pck_path
+	# Executable names are free-form: if nothing matched the conventional
+	# extensions, the first exec-bit ELF or script file counts (Unity builds
+	# are often a bare "gamename" binary with no extension).
+	if exec_path == "":
+		exec_path = fallback_exec
 
-	# Games are launched without --main-pack (export templates reject it), so
-	# the exec only finds a pck whose basename matches its own.
-	if exec_path.ends_with(".x86_64") and pck_path != "" \
-			and exec_path.get_file().get_basename() != pck_path.get_file().get_basename():
-		scan_warnings.append("WARN: %s — '%s' won't be found by '%s'; rename it to '%s.pck'" \
-			% [info.game_id, pck_path.get_file(), exec_path.get_file(), exec_path.get_file().get_basename()])
+	info.exec_path = exec_path
+	info.launch_args = PackedStringArray(ENGINE_ARGS[engine])
 
 	if FileAccess.file_exists(icon_path): info.icon_path = icon_path
 	if FileAccess.file_exists(screenshot_path): info.screenshot_path = screenshot_path
@@ -84,6 +100,29 @@ func _scan_game_folder(folder: String) -> GameInfo:
 	_load_metadata(info, json_path)
 	_fallback_title(info)
 	return info
+
+func _looks_executable(path: String) -> bool:
+	# Exec bits only exist on the cabinet's Linux filesystem; during Windows
+	# development only conventionally-named executables are detected.
+	if not _is_linux:
+		return false
+	# SFTP uploads routinely stamp exec bits on everything, so the bit alone
+	# isn't enough: positively identify binaries by magic bytes instead of
+	# maintaining a denylist of asset extensions. Shared libraries are ELF
+	# too, hence the explicit .so exclusion.
+	if path.get_extension().to_lower() == "so":
+		return false
+	if FileAccess.get_unix_permissions(path) & 0x49 == 0:   # ---x--x--x
+		return false
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return false
+	var magic := file.get_buffer(4)
+	if magic.size() < 4:
+		return false
+	var is_elf := magic == PackedByteArray([0x7F, 0x45, 0x4C, 0x46])  # \x7FELF
+	var is_script := magic[0] == 0x23 and magic[1] == 0x21             # "#!"
+	return is_elf or is_script
 
 func _load_metadata(info: GameInfo, json_path: String) -> void:
 	if not FileAccess.file_exists(json_path):

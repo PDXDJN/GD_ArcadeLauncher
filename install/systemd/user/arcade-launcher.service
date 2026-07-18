@@ -1,0 +1,15 @@
+[Unit]
+Description=c-base Arcade Launcher (session user service)
+# Tied to the graphical session: starts once the desktop is up, inherits
+# DISPLAY/XAUTHORITY from the session, and stops when the session ends.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+WorkingDirectory=/arcade/launcher
+ExecStart=/arcade/launcher/launcher.x86_64
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

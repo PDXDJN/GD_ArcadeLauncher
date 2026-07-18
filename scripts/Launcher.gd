@@ -51,6 +51,7 @@ var _attract_blink_timer: float = 0.0
 var _attract_blink_state: bool = true
 var _admin_hold_time: float = 0.0
 var _list_build_id: int = 0
+var _texture_cache: Dictionary = {}   # path -> Texture2D (null for failed loads)
 
 var _clock_tick: float = 0.0             # seconds since last clock update
 var _glitch_cooldown: float = 0.0        # seconds until next ambient glitch burst
@@ -143,6 +144,7 @@ func _update_glow_pulse() -> void:
 func _reload_games() -> void:
 	if launching:
 		return
+	_texture_cache.clear()
 	games = scanner.scan_games()
 	games.sort_custom(func(a, b): return a.title.naturalnocasecmp_to(b.title) < 0)
 	_rebuild_list()
@@ -180,8 +182,7 @@ func _rebuild_list() -> void:
 		# ★ NEW badge: visible if the game was added within the last 24 h
 		new_badge.visible = g.last_modified > 0 and (now - g.last_modified) < NEW_GAME_SECONDS
 
-		if g.icon_path != "":
-			icon_node.texture = _load_external_texture(g.icon_path)
+		icon_node.texture = _load_external_texture(g.icon_path)
 
 		button.focus_mode = Control.FOCUS_ALL
 		var idx := i
@@ -310,25 +311,21 @@ func _show_preview_or_fallback(g: GameInfo) -> void:
 	preview.visible      = false
 	icon_or_shot.visible = true
 
-	if g.preview_path != "" and FileAccess.file_exists(g.preview_path):
-		if g.preview_path.ends_with(".ogv"):
-			var stream := VideoStreamTheora.new()
-			stream.file = g.preview_path
-			preview.stream  = stream
-			preview.visible = true
-			icon_or_shot.visible = false
-			preview.play()
-			preview.modulate.a = 0.0
-			var tween := create_tween()
-			tween.tween_property(preview, "modulate:a", 1.0, 0.4)
-			return
+	# Asset paths are only set by the scanner for files that existed at scan
+	# time, so no re-stat is needed here.
+	if g.preview_path.ends_with(".ogv"):
+		var stream := VideoStreamTheora.new()
+		stream.file = g.preview_path
+		preview.stream  = stream
+		preview.visible = true
+		icon_or_shot.visible = false
+		preview.play()
+		preview.modulate.a = 0.0
+		var tween := create_tween()
+		tween.tween_property(preview, "modulate:a", 1.0, 0.4)
+		return
 
-	var img_path := ""
-	if g.screenshot_path != "" and FileAccess.file_exists(g.screenshot_path):
-		img_path = g.screenshot_path
-	elif g.icon_path != "" and FileAccess.file_exists(g.icon_path):
-		img_path = g.icon_path
-
+	var img_path := g.screenshot_path if g.screenshot_path != "" else g.icon_path
 	if img_path != "":
 		icon_or_shot.texture = _load_external_texture(img_path)
 		icon_or_shot.modulate.a = 0.0
@@ -339,13 +336,18 @@ func _show_preview_or_fallback(g: GameInfo) -> void:
 
 func _load_external_texture(path: String) -> Texture2D:
 	# Game assets live outside the pck, so ResourceLoader/load() can't touch
-	# them in an exported build — decode the image file directly instead.
-	if path == "" or not FileAccess.file_exists(path):
+	# them in an exported build — decode the image file directly, once per
+	# scan (the cache is cleared on every rescan; failed loads cache null).
+	if path == "":
 		return null
+	if _texture_cache.has(path):
+		return _texture_cache[path]
+	var tex: Texture2D = null
 	var img := Image.new()
-	if img.load(path) != OK:
-		return null
-	return ImageTexture.create_from_image(img)
+	if img.load(path) == OK:
+		tex = ImageTexture.create_from_image(img)
+	_texture_cache[path] = tex
+	return tex
 
 func _stop_preview() -> void:
 	if preview.is_playing():
@@ -438,9 +440,6 @@ func _launch_selected() -> void:
 	if games.is_empty():
 		return
 	var g: GameInfo = games[selected_index]
-	if not g.is_launchable():
-		push_error("Game not launchable: %s" % g.title)
-		return
 
 	launching = true
 	attract_timer.stop()
@@ -459,25 +458,24 @@ func _launch_selected() -> void:
 	_fade_out(0.3)
 	await get_tree().create_timer(0.3).timeout
 
-	# BLOCKING launch on the main thread: the launcher process is halted
-	# inside OS.execute() for the game's entire lifetime — no rendering, no
-	# timers, no input processing of any kind until the game exits or crashes.
-	# No --main-pack: official Godot 4.4+ export templates are built without
-	# path-override support and abort on it. The exported binary finds its pck
-	# on its own (embedded, or <exec_basename>.pck next to the executable).
-	# --fullscreen is a display arg (still allowed in export templates) that
-	# forces cabinet-correct behavior even for games exported windowed.
-	var output: Array = []
-	var exit_code := OS.execute(g.exec_path, ["--fullscreen"], output)
+	# BLOCKING launch on the main thread: the launcher process is halted here
+	# for the game's entire lifetime — no rendering, no timers, no input
+	# processing of any kind until the game exits or crashes. The sh wrapper
+	# drops the game's stdout at the OS level (OS.execute would otherwise
+	# buffer it in launcher memory for the game's whole runtime); stderr
+	# stays inherited so game errors still reach the journal.
+	var sh_args: PackedStringArray = ["-c", 'exec "$0" "$@" > /dev/null', g.exec_path]
+	sh_args.append_array(g.launch_args)
+	var exit_code := OS.execute("/bin/sh", sh_args)
 	if exit_code != 0:
 		push_error("Game '%s' exited with code %d" % [g.game_id, exit_code])
 
-	# Input events that queued up in the OS while we were blocked dispatch
-	# during the next frames — swallow them behind the still-active guards
-	# before re-enabling input, so a button mashed in-game can't navigate or
-	# relaunch the moment the launcher wakes.
+	# Input that queued up while we were blocked dispatches under the
+	# still-active guards: pump one frame for OS event delivery, then flush
+	# the input buffer, so a button mashed in-game can't act the moment the
+	# launcher wakes.
 	await get_tree().process_frame
-	await get_tree().process_frame
+	Input.flush_buffered_events()
 
 	get_viewport().gui_disable_input = false
 	title_label.scale    = Vector2(1.0, 1.0)

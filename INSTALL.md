@@ -137,6 +137,39 @@ ssh arcade@<cabinet-ip> "chmod +x /arcade/tools/watch_games.sh"
 
 ## Step 8: Install Systemd Services
 
+Two variants exist. **Variant A (recommended): user services owned by the
+desktop user** — the account that the graphical session auto-logs into. The
+launcher then starts when the session is ready, inherits `DISPLAY` and
+`XAUTHORITY` from it (no hardcoded cookie paths, no X-auth failures), and
+stops with the session.
+
+```bash
+# As the desktop user (the one GDM auto-logs in) on the cabinet:
+mkdir -p ~/.config/systemd/user
+cp install/systemd/user/arcade-launcher.service ~/.config/systemd/user/
+cp install/systemd/user/arcade-watch.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable arcade-launcher.service arcade-watch.service
+systemctl --user start arcade-launcher.service arcade-watch.service
+
+# Check status / logs:
+systemctl --user status arcade-launcher.service
+journalctl --user -u arcade-launcher.service -f
+```
+
+The desktop user needs access to the launcher's files:
+
+```bash
+# Read/execute for launcher + games, write for scores and state
+sudo chown -R <desktop_user>: /arcade
+# (If a separate SFTP upload user writes /arcade/games, use a shared group
+# on that directory instead of exclusive ownership.)
+```
+
+**Variant B: system services** (original setup, runs even with no session
+manager — but requires the XAUTHORITY path in the unit to match your display
+manager, see Troubleshooting):
+
 ```bash
 # Copy service files to systemd directory
 sudo cp install/systemd/arcade-launcher.service /etc/systemd/system/
@@ -312,9 +345,36 @@ echo "games_changed" > /tmp/arcade_event
 ### Game won't launch
 
 - Ensure executable has +x permission: `chmod +x /arcade/games/my_game/game.x86_64`
-- Check if both `.x86_64` and `.pck` files exist
 - Verify game is built for Linux x86_64
 - Check launcher logs: `sudo journalctl -u arcade-launcher.service -f`
+
+### Launcher logs "X11 Display is not available" / falls back to Wayland
+
+This means the launcher is NOT running on X11, and games will misbehave:
+under Wayland the compositor refuses to hand focus to spawned game windows
+(games start invisibly behind the launcher or not at all), Unity games can't
+open a display, and compositor close-requests can make the launcher exit
+cleanly, causing systemd restart loops.
+
+Fix, in order:
+
+1. Ensure Wayland is disabled (Step 1 of this guide) — check it wasn't
+   reverted by an Ubuntu update:
+   ```bash
+   grep WaylandEnable /etc/gdm3/custom.conf   # must be: WaylandEnable=false
+   sudo reboot
+   loginctl show-session $(loginctl | awk '/arcade/ {print $1; exit}') -p Type
+   # must be: Type=x11
+   ```
+2. Make sure the service can reach the X server — the `XAUTHORITY` path in
+   `arcade-launcher.service` must point at GDM's cookie for the arcade
+   user's uid:
+   ```bash
+   ls /run/user/$(id -u arcade)/gdm/Xauthority
+   DISPLAY=:0 XAUTHORITY=/run/user/$(id -u arcade)/gdm/Xauthority xrandr
+   # xrandr must print display modes; then reload the service:
+   sudo systemctl daemon-reload && sudo systemctl restart arcade-launcher
+   ```
 
 ### Display issues
 
