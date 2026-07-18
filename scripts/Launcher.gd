@@ -63,7 +63,7 @@ var _glitch_layer: CanvasLayer = null    # CanvasLayer hosting effects + glitch 
 
 # ── Lifecycle ──────────────────────────────────────────────────────────────────
 func _ready() -> void:
-	# Same WM race guard as in Boot.gd, in case the boot scene is skipped.
+	# Same WM race guard as Boot.gd, in case the boot scene is skipped
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 	add_child(scanner)
@@ -97,12 +97,9 @@ func _ready() -> void:
 	_update_clock()
 
 func _process(delta: float) -> void:
-	# ── Game watchdog ──────────────────────────────────────────────────────
-	# While a game runs the launcher stays ALIVE (Wayland requires frame
-	# callbacks and ping replies — a frozen client gets close-requested as
-	# "not responding") but dormant: input is blocked by the launching /
-	# gui_disable_input guards, and everything below (attract mode, admin
-	# combo, filesystem reloads) is skipped until the game exits.
+	# ── Game watchdog: launcher stays alive while a game runs (a frozen
+	# Wayland client gets close-requested) but dormant — input blocked by
+	# the guards, everything below skipped until the game exits.
 	if _game_pid >= 0:
 		if not OS.is_process_running(_game_pid):
 			_on_game_exited()
@@ -328,8 +325,7 @@ func _show_preview_or_fallback(g: GameInfo) -> void:
 	preview.visible      = false
 	icon_or_shot.visible = true
 
-	# Asset paths are only set by the scanner for files that existed at scan
-	# time, so no re-stat is needed here.
+	# Scanner only sets asset paths for files that exist — no re-stat needed
 	if g.preview_path.ends_with(".ogv"):
 		var stream := VideoStreamTheora.new()
 		stream.file = g.preview_path
@@ -352,9 +348,8 @@ func _show_preview_or_fallback(g: GameInfo) -> void:
 		icon_or_shot.texture = null
 
 func _load_external_texture(path: String) -> Texture2D:
-	# Game assets live outside the pck, so ResourceLoader/load() can't touch
-	# them in an exported build — decode the image file directly, once per
-	# scan (the cache is cleared on every rescan; failed loads cache null).
+	# Assets live outside the pck (ResourceLoader can't load them) — decode
+	# directly, cached per scan; failed loads cache null.
 	if path == "":
 		return null
 	if _texture_cache.has(path):
@@ -449,9 +444,7 @@ func _navigate_list(direction: int) -> void:
 
 # ── Launch ─────────────────────────────────────────────────────────────────────
 func _launch_selected() -> void:
-	# Reentrancy guard: every path that can start a game funnels through here
-	# (accept action, button pressed signal, contact bounce on arcade buttons),
-	# so this is the single place that makes double-launching impossible.
+	# Reentrancy guard — every launch path funnels through here
 	if launching:
 		return
 	if games.is_empty():
@@ -460,9 +453,8 @@ func _launch_selected() -> void:
 
 	launching = true
 	attract_timer.stop()
-	# Joysticks are read globally (not focus-gated), and Control focus
-	# navigation consumes ui_* actions before _unhandled_input ever sees
-	# them — so the GUI layer must be switched off explicitly.
+	# Focus navigation eats ui_* actions before _unhandled_input sees them —
+	# the GUI layer must be disabled explicitly.
 	get_viewport().gui_disable_input = true
 	last_game_id = g.game_id
 	_save_state()
@@ -475,10 +467,8 @@ func _launch_selected() -> void:
 	_fade_out(0.3)
 	await get_tree().create_timer(0.3).timeout
 
-	# NON-blocking spawn: the launcher's main loop keeps running (Wayland
-	# close-requests frozen clients), but stays input-dead behind the guards
-	# until the watchdog in _process() sees the game exit. The sh wrapper
-	# writes the game's output and exit code to a per-game log file.
+	# Non-blocking spawn; the watchdog in _process() ends the session when
+	# the game exits. The sh wrapper logs game output + exit code.
 	DirAccess.make_dir_recursive_absolute(GAME_LOG_DIR)
 	_game_log_path = GAME_LOG_DIR.path_join("%s.log" % g.game_id)
 	var sh_args: PackedStringArray = [
@@ -591,9 +581,8 @@ func _load_state() -> void:
 
 # ── Visual effects ──────────────────────────────────────────────────────────────
 func _setup_effects() -> void:
-	# Single CanvasLayer above UI panels (layer 65) but below the system overlays
-	# (AttractOverlay=60 is below, AdminOverlay=90 and FadeLayer=100 are above).
-	# Glitch bars are spawned into this layer at runtime.
+	# Effects layer 65: above UI and AttractOverlay(60), below AdminOverlay(90)
+	# and FadeLayer(100). Glitch bars spawn here at runtime.
 	_glitch_layer = CanvasLayer.new()
 	_glitch_layer.layer = 65
 	add_child(_glitch_layer)

@@ -8,10 +8,8 @@ Type=simple
 User=arcade
 WorkingDirectory=/arcade/launcher
 Environment=DISPLAY=:0
-# On Ubuntu, GDM writes the X11 cookie here (uid of the `arcade` user, see
-# `id -u arcade`) — ~/.Xauthority is only used by older display managers.
-# If this path is wrong the launcher logs "X11 Display is not available"
-# and falls back to Wayland, which breaks game window focus handling.
+# Legacy X11 variant — prefer the user units in install/systemd/user/.
+# GDM's cookie lives at /run/user/<uid>/gdm/Xauthority.
 Environment=XAUTHORITY=/run/user/1000/gdm/Xauthority
 ExecStart=/arcade/launcher/launcher.x86_64
 Restart=always

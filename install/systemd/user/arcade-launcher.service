@@ -1,7 +1,7 @@
 [Unit]
 Description=c-base Arcade Launcher (session user service)
-# Tied to the graphical session: starts once the desktop is up, inherits
-# DISPLAY/XAUTHORITY from the session, and stops when the session ends.
+# Starts with the graphical session, inherits its display environment,
+# stops when the session ends.
 After=graphical-session.target
 PartOf=graphical-session.target
 

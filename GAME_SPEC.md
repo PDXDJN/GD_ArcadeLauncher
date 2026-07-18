@@ -22,46 +22,29 @@ The c-base Arcade Launcher supports drop-in games via simple folder uploads to `
 
 ### 1. Linux Executable
 
-This is the **only required file** — everything else is optional.
+The **only required file** — everything else is optional.
 
-**File name:** anything. Files ending in `.x86_64` or `.AppImage` are always
-recognized; any other file with the executable bit set (`chmod +x`) works
-too, e.g. a bare `mygame` binary from a Unity build.
+**File name:** anything. `*.x86_64` and `*.AppImage` are always recognized;
+any other file with the exec bit set works too (e.g. a bare Unity binary).
+If several qualify, conventionally-named ones win.
 
 **Requirements:**
-- Built for Linux x86_64 architecture
-- Must be executable (`chmod +x`) — SFTP uploads often drop this bit!
-- One executable per folder (if several qualify, conventionally-named ones —
-  `*.x86_64`, `*.AppImage` — win over bare exec-bit binaries)
+- Linux x86_64 build
+- Executable bit set (`chmod +x`) — SFTP uploads often drop it!
+
+### 2. Godot Pack File (bare Godot exports only)
+
+Needed only for Godot exports **without an embedded PCK**. Unity games and
+AppImages never need one.
+
+**File name:** same base name as the executable, ending in `.pck` — the
+launcher starts the executable without path arguments, so Godot finds the
+pack by filename. A mismatched name means the game won't start.
 
 **Example:**
 ```bash
-game.x86_64
-space_shooter.AppImage
-mygame            # any exec-bit file works
-```
-
-### 2. Godot Pack File (Godot exports only)
-
-*Optional in general — but a bare Godot export won't start without it. Not
-needed for Unity games, AppImages, or Godot exports with an embedded PCK
-(see [Unity Games](#unity-games) below).*
-
-**File name:** Must have the **same base name as your executable**, ending in `.pck`
-
-**Requirements:**
-- Godot game data pack
-- Must be compatible with the executable
-- Base name must match the executable (e.g. `game.x86_64` + `game.pck`) — the
-  launcher starts your executable without path arguments, and Godot finds the
-  pack by matching filenames. A mismatched name means your game won't start.
-- Exports with an **embedded PCK** need no `.pck` file at all.
-
-**Example:**
-```bash
-game.x86_64 + game.pck                        # ✓ names match
-my_awesome_game.x86_64 + my_awesome_game.pck  # ✓ names match
-game.x86_64 + data.pck                        # ✗ game will not start
+game.x86_64 + game.pck   # ✓
+game.x86_64 + data.pck   # ✗ won't start
 ```
 
 ### 3. Required Input Actions
@@ -85,46 +68,37 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ### 4. Display Settings
 
-The launcher starts your game with `--fullscreen`, so it will cover the whole
-cabinet screen regardless of your project's window mode. To avoid a distorted
-("squished") picture, your project settings must handle arbitrary screen
-resolutions:
-
-- **Stretch mode:** `canvas_items` (or `viewport` for pixel art)
-- **Stretch aspect:** `keep` (letterboxes) or `expand` — **never `ignore`**,
-  which stretches your game to whatever the screen is and distorts it
-- Design for 16:9 (e.g. 1920×1080), but don't assume the cabinet screen is
-  exactly that resolution
-
-In `project.godot`:
+The launcher starts your game with `--fullscreen`. To avoid a distorted
+picture on arbitrary screens, set in `project.godot`:
 
 ```ini
 [display]
-window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/mode="canvas_items"   # or "viewport" for pixel art
+window/stretch/aspect="keep"         # or "expand" — never "ignore" (distorts)
 ```
+
+Design for 16:9 (e.g. 1920×1080), but don't assume the exact resolution.
 
 ## Unity Games
 
-Unity Linux builds are supported too. Upload the build output as-is:
+Upload the Linux build output as-is:
 
 ```
 /arcade/games/<your_game_folder>/
-├── mygame.x86_64          # Required: the Unity player executable
-├── UnityPlayer.so         # Required (Unity 2019+; older builds don't have it)
-├── mygame_Data/           # Required: Unity data directory
-├── game.json              # Recommended: metadata (same as Godot games)
-└── screenshot.png / icon.png / preview.ogv
+├── mygame.x86_64          # Unity player executable
+├── UnityPlayer.so         # Unity 2019+
+├── mygame_Data/           # Data directory
+└── game.json / screenshot.png / icon.png / preview.ogv   # optional
 ```
 
-The launcher detects Unity builds automatically (via `UnityPlayer.so` or the
-`*_Data` directory) — no `.pck` is needed. The game is started with
-`-screen-fullscreen 1`.
+Detection is automatic (`UnityPlayer.so` or `*_Data`); no `.pck` involved.
+Games are started with `-screen-fullscreen 1`.
 
-**Input:** the Godot InputMap contract doesn't apply to Unity. Your game must
-read the cabinet's joystick/buttons through Unity's own input system, and it
-**MUST** quit to the launcher on the exit button (the same physical button
-Godot games map to `ui_exit`) via `Application.Quit()`.
+**Input:** the Godot InputMap contract doesn't apply — read the cabinet
+controls via Unity's input system, and quit to the launcher on the exit
+button (Godot's `ui_exit` button) via `Application.Quit()`.
+
+## Recommended Files
 
 ### 1. Game Metadata (game.json)
 

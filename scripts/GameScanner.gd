@@ -5,10 +5,9 @@ class_name GameScanner
 
 const GAMES_DIR := "/arcade/games"
 
-# Fullscreen flag per engine, resolved at scan time so the launch path stays
-# engine-agnostic. Only display args are passed: Godot 4.4+ export templates
-# reject path overrides like --main-pack, and the binary finds its pck on its
-# own (embedded, or basename-matched next to the executable).
+# Per-engine fullscreen args, resolved at scan time so the launcher stays
+# engine-agnostic. Display args only — export templates reject --main-pack;
+# the binary finds its pck itself (embedded or basename-matched).
 const ENGINE_ARGS := {
 	"godot": ["--fullscreen"],
 	"unity": ["-screen-fullscreen", "1"],
@@ -73,21 +72,18 @@ func _scan_game_folder(folder: String) -> GameInfo:
 			elif exec_path == "" and fallback_exec == "" and _looks_executable(folder.path_join(f)):
 				fallback_exec = folder.path_join(f)
 		elif f.ends_with("_Data"):
-			# Unity builds older than 2019 have no UnityPlayer.so, but always
-			# ship a <name>_Data directory next to the executable.
+			# Pre-2019 Unity builds have no UnityPlayer.so but always ship *_Data
 			engine = "unity"
 		f = dir.get_next()
 	dir.list_dir_end()
 
-	# Executable names are free-form: if nothing matched the conventional
-	# extensions, the first exec-bit ELF or script file counts (Unity builds
-	# are often a bare "gamename" binary with no extension).
+	# Names are free-form: fall back to the first exec-bit ELF/script file
+	# (Unity binaries are often a bare "gamename" with no extension).
 	if exec_path == "":
 		exec_path = fallback_exec
 	elif _is_linux and not _looks_executable(exec_path):
-		# A conventionally-named "executable" that isn't actually runnable
-		# (empty file from a botched upload, missing exec bit) would exec as
-		# an empty shell script and exit 0 silently — reject it loudly.
+		# A non-runnable .x86_64 (botched upload, missing +x) would exec as an
+		# empty shell script and exit 0 silently — reject it loudly.
 		scan_warnings.append("WARN: %s — %s is empty/not ELF or lacks +x; rejected"
 			% [info.game_id, exec_path.get_file()])
 		exec_path = fallback_exec
@@ -109,14 +105,11 @@ func _scan_game_folder(folder: String) -> GameInfo:
 	return info
 
 func _looks_executable(path: String) -> bool:
-	# Exec bits only exist on the cabinet's Linux filesystem; during Windows
-	# development only conventionally-named executables are detected.
+	# No exec bits on Windows dev — only conventional names match there.
 	if not _is_linux:
 		return false
-	# SFTP uploads routinely stamp exec bits on everything, so the bit alone
-	# isn't enough: positively identify binaries by magic bytes instead of
-	# maintaining a denylist of asset extensions. Shared libraries are ELF
-	# too, hence the explicit .so exclusion.
+	# SFTP stamps exec bits on everything, so identify binaries by magic
+	# bytes. Shared libraries are ELF too, hence the .so exclusion.
 	if path.get_extension().to_lower() == "so":
 		return false
 	if FileAccess.get_unix_permissions(path) & 0x49 == 0:   # ---x--x--x

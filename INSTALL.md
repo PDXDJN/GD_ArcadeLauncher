@@ -10,21 +10,16 @@ Complete step-by-step installation guide for Ubuntu Linux.
 
 ## Step 1: Session Type (Wayland)
 
-The cabinet runs the default Ubuntu **Wayland** session — no display-server
-changes are needed. The launcher supports this by running as a systemd *user*
-service inside the graphical session (Step 8, Variant A), which is required:
-a system-level service outside the session cannot reliably reach the Wayland
-compositor.
-
-Verify after login:
+The cabinet runs the default Ubuntu **Wayland** session — no changes needed.
+The launcher must run as a systemd *user* service inside the session
+(Step 8, Variant A) to reach the compositor.
 
 ```bash
-echo $XDG_SESSION_TYPE
-# Should output: wayland
+echo $XDG_SESSION_TYPE   # → wayland
 ```
 
-Note: Godot apps log `X11 Display is not available … falling back to wayland`
-at startup on this setup. That is expected and harmless.
+Godot logging `X11 Display is not available … falling back to wayland` at
+startup is expected and harmless.
 
 ## Step 2: Create Arcade User
 
@@ -127,11 +122,9 @@ ssh arcade@<cabinet-ip> "chmod +x /arcade/tools/watch_games.sh"
 
 ## Step 8: Install Systemd Services
 
-Two variants exist. **Variant A (recommended): user services owned by the
-desktop user** — the account that the graphical session auto-logs into. The
-launcher then starts when the session is ready, inherits `DISPLAY` and
-`XAUTHORITY` from it (no hardcoded cookie paths, no X-auth failures), and
-stops with the session.
+**Variant A (recommended): user services owned by the desktop user** (the
+auto-login account). They start with the session, inherit its display
+environment, and stop with it.
 
 ```bash
 # As the desktop user (the one GDM auto-logs in) on the cabinet:
@@ -156,9 +149,8 @@ sudo chown -R <desktop_user>: /arcade
 # on that directory instead of exclusive ownership.)
 ```
 
-**Variant B: system services** (original setup, runs even with no session
-manager — but requires the XAUTHORITY path in the unit to match your display
-manager, see Troubleshooting):
+**Variant B: system services** (legacy X11 setup — not suitable for the
+Wayland cabinet):
 
 ```bash
 # Copy service files to systemd directory
